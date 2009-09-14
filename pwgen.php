@@ -82,7 +82,7 @@
 				$this->pwgen_flags |= self::AMBIGUOUS;
 			}
 			if($capitalize) {
-				$this->pwgen_flags |= self::PW_DIGITS;
+				$this->pwgen_flags |= self::PW_UPPERS;
 			}
 			if($numerals) {
 				$this->pwgen_flags |= self::PW_DIGITS;
@@ -101,16 +101,17 @@
 		}
 
 		function calculate() {
-			if($this->pwgen == 'pw_phonemes') 
+			if($this->pwgen == 'pw_phonemes') {
 				$this->pw_phonemes();
-			else if($this->pwgen == 'pw_rand')
+			} else { // $this->pwgen == 'pw_rand'
 				$this->pw_rand();
+			}
 			return $this->password;
 		}
 
 		private function pw_phonemes() {
 			$this->password = array();
-	
+
 			do {
 				$feature_flags = $this->pwgen_flags;
 				$c = 0;
@@ -137,7 +138,7 @@
 					if ($len > $this->pw_length-$c)
 						continue;
 	
-					/* Handle the AMBIGUOUS flag */
+					// Handle the AMBIGUOUS flag
 					if ($this->pwgen_flags & self::PW_AMBIGUOUS) {
 						if (strpbrk($str, self::$pw_ambiguous) !== false)
 							continue;
@@ -147,10 +148,10 @@
 					 * OK, we found an element which matches our criteria,
 					 * let's do it!
 					 */
-					for($j=$c; $j < $len; $j++)
+					for($j=0; $j < $len; $j++)
 						$this->password[$c+$j] = $str[$j];
-	
-					/* Handle PW_UPPERS */
+
+					// Handle PW_UPPERS
 					if ($this->pwgen_flags & self::PW_UPPERS) {
 						if (($first || $flags & self::CONSONANT) && (mt_rand(0, 9) < 2)) {
 							$this->password[$c] = strtoupper($this->password[$c]);
@@ -160,20 +161,17 @@
 			
 					$c += $len;
 			
-					/* Time to stop? */
+					// Time to stop?
 					if ($c >= $this->pw_length)
-						return;
+						break;
 			
-					/*
-					 * Handle PW_DIGITS
-					 */
+					// Handle PW_DIGITS
 					if ($this->pwgen_flags & self::PW_DIGITS) {
 						if (!$first && (mt_rand(0, 9) < 3)) {
 							do {
 								$ch = strval(mt_rand(0, 9));
-							} while (($this->pwgen_flags & self::PW_AMBIGUOUS) && strchr(self::$pw_ambiguous, $ch));
-							$this->password[$c++] = $ch; //FIXME
-							$this->password[$c] = 0;
+							} while (($this->pwgen_flags & self::PW_AMBIGUOUS) && strpos(self::$pw_ambiguous, $ch) !== false);
+							$this->password[$c++] = $ch;
 							$feature_flags &= ~self::PW_DIGITS;
 					
 							$first = 1;
@@ -188,19 +186,16 @@
 						if (!$first && (mt_rand(0, 9) < 2)) {
 							do {
 								$ch = self::$pw_symbols[mt_rand(0, strlen(self::$pw_symbols)-1)];
-							} while (($this->pwgen_flags & self::PW_AMBIGUOUS) && strchr(self::$pw_ambiguous, $ch));
-							$this->password[$c++] = $ch; //FIXME
-							$this->password[$c] = 0;
+							} while (($this->pwgen_flags & self::PW_AMBIGUOUS) && strpos(self::$pw_ambiguous, $ch) !== false);
+							$this->password[$c++] = $ch;
 							$feature_flags &= ~self::PW_SYMBOLS;
 						}
 					}
 	
-					/*
-					 * OK, figure out what the next element should be
-					 */
+					// OK, figure out what the next element should be
 					if ($should_be == self::CONSONANT) {
 						$should_be = self::VOWEL;
-					} else { /* should_be == VOWEL */
+					} else { // should_be == VOWEL
 						if (($prev & self::VOWEL) || ($flags & self::DIPHTHONG) || (mt_rand(0, 9) > 3))
 							$should_be = self::CONSONANT;
 						else
@@ -210,6 +205,8 @@
 					$first = 0;
 				}
 			} while ($feature_flags & (self::PW_UPPERS | self::PW_DIGITS | self::PW_SYMBOLS));
+
+			$this->password = implode('', $this->password);
 		}
 
 		function pw_rand() {
