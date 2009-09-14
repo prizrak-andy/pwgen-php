@@ -11,57 +11,56 @@
 		const PW_UPPERS = 0x0002; // At least one upper letter
 		const PW_SYMBOLS = 0x0004;
 		const PW_AMBIGUOUS = 0x0008;
-		const PW_NO_VOWELS = 0x0010;
 
 		// Flags for the pwgen element
-		const CONSONANT = 0x0001; 	// Konsonant, Mitlaut (b, c, ...)
-		const VOWEL = 0x0002;		// Vokal, Selbstlaut (a, e, i, o, u)
-		const DIPHTHONG = 0x0004;	// Zwielaut (ei, au, ...)
+		const CONSONANT = 0x0001;
+		const VOWEL = 0x0002;
+		const DIPHTHONG = 0x0004;
 		const NOT_FIRST = 0x0008;
+		const NO_VOWELS = 0x0010;
 
 		private $pw_length;
 		private $pwgen_flags;
 		private $pwgen;
 		private $password;
 
-		private static $filled = false;
+		private static $initialized = false; // static block alread called?
 		private static $elements;
 		private static $pw_ambiguous;
 		private static $pw_symbols;
 		private static $pw_digits;
 		private static $pw_uppers;
 		private static $pw_lowers;
+		private static $pw_vowels;
 
 		/**
-		 * @param length	Length of the generated password.
-		 * @param no_numerals	Don't include numbers in the generated passwords.
-		 * @param no_capitalize	Don't bother to include any capital letters in the generated passwords.
+		 * @param length	Length of the generated password. Default: 8
+		 * @param secure	Generate completely random, hard-to-memorize passwords. These should only
+		 * 			be used for machine passwords, since otherwise it's almost guaranteed that
+		 * 			users will simply write the password on a piece of paper taped to the monitor...
+		 * @param numerals	Include at least one number in the password. This is the default.
+		 * @param capitalize	Include at least one capital letter in the password. This is the default.
 		 * @param ambiguous	Don't use characters that could be confused by the user when printed,
 		 * 			such as 'l' and '1', or '0' or 'O'. This reduces the number of possible
 		 *			passwords significantly, and as such reduces the quality of the passwords.
 		 *			It may be useful for users who have bad vision, but in general use of this
 		 *			option is not recommended.
-		 * @param capitalize	Include at least one capital letter in the password. This is the default.
-		 * @param numerals	Include at least one number in the password. This is the default.
-		 * @param secure	Generate completely random, hard-to-memorize passwords. These should only
-		 * 			be used for machine passwords, since otherwise it's almost guaranteed that
-		 * 			users will simply write the password on a piece of paper taped to the monitor...
 		 * @param no-vowels	Generate random passwords that do not contain vowels or numbers that might be
 		 * 			mistaken for vowels. It provides less secure passwords to allow system
 		 * 			administrators to not have to worry with random passwords accidentally contain
 		 * 			offensive substrings.
 		 * @param symbols	Include at least one special character in the password.
 		 */
-		function __construct($length=8, $no_numerals=false, $no_capitalize=false, $ambiguous=false,
-			$capitalize=true, $numerals=true, $secure=false, $no_vovels=false, $symbols=false) {
-			self::fill_static();
+		public function __construct($length=8, $secure=false, $numerals=true, $capitalize=true,
+			$ambiguous=false, $no_vovels=false, $symbols=false) {
+			self::__static();
 
 			$this->pwgen = 'pw_phonemes';
 
 			if (is_numeric($length) && $length > 0) {
 				$this->pw_length = $length;
 				if ($this->pw_length < 5) {
-					$pwgen = &$this->pw_rand;
+					$this->pwgen = 'pw_rand';
 				}
 				if ($this->pw_length <= 2) {
 					$this->pwgen_flags &= ~self::PW_UPPERS;
@@ -72,35 +71,35 @@
 			} else {
 				$this->pw_length = 8;
 			}
-			if($no_numerals) {
-				$this->pwgen_flags &= ~self::PW_DIGITS;
-			}
-			if($no_capitalize) {
-				$this->pwgen_flags &= ~self::PW_UPPERS;
-			}
-			if($ambiguous) {
-				$this->pwgen_flags |= self::AMBIGUOUS;
-			}
-			if($capitalize) {
-				$this->pwgen_flags |= self::PW_UPPERS;
-			}
-			if($numerals) {
-				$this->pwgen_flags |= self::PW_DIGITS;
-			}
+
 			if($secure) {
 				$this->pwgen = 'pw_rand';
 				$this->pwgen_flags |= self::PW_DIGITS | self::PW_UPPERS;
 			}
-			if($symbols) {
-				$this->pwgen_flags |= self::PW_SYMBOLS;
+
+			if($numerals) {
+				$this->pwgen_flags |= self::PW_DIGITS;
 			}
+
+			if($capitalize) {
+				$this->pwgen_flags |= self::PW_UPPERS;
+			}
+
+			if($ambiguous) {
+				$this->pwgen_flags |= self::PW_AMBIGUOUS;
+			}
+
 			if($no_vovels) {
 				$this->pwgen = 'pw_rand';
 				$this->pwgen_flags |= self::NO_VOWELS | self::PW_DIGITS | self::PW_UPPERS;
 			}
+
+			if($symbols) {
+				$this->pwgen_flags |= self::PW_SYMBOLS;
+			}
 		}
 
-		function calculate() {
+		public function calculate() {
 			if($this->pwgen == 'pw_phonemes') {
 				$this->pw_phonemes();
 			} else { // $this->pwgen == 'pw_rand'
@@ -132,7 +131,8 @@
 					if ($first && ($flags & self::NOT_FIRST))
 						continue;
 					// Don't allow VOWEL followed a Vowel/Dipthong pair
-					if (($prev & self::VOWEL) && ($flags & self::VOWEL) && ($flags & self::DIPHTHONG))
+					if (($prev & self::VOWEL) && ($flags & self::VOWEL) &&
+						($flags & self::DIPHTHONG))
 						continue;
 					// Don't allow us to overflow the buffer
 					if ($len > $this->pw_length-$c)
@@ -170,7 +170,8 @@
 						if (!$first && (mt_rand(0, 9) < 3)) {
 							do {
 								$ch = strval(mt_rand(0, 9));
-							} while (($this->pwgen_flags & self::PW_AMBIGUOUS) && strpos(self::$pw_ambiguous, $ch) !== false);
+							} while (($this->pwgen_flags & self::PW_AMBIGUOUS) &&
+								strpos(self::$pw_ambiguous, $ch) !== false);
 							$this->password[$c++] = $ch;
 							$feature_flags &= ~self::PW_DIGITS;
 					
@@ -185,8 +186,10 @@
 					if ($this->pwgen_flags & self::PW_SYMBOLS) {
 						if (!$first && (mt_rand(0, 9) < 2)) {
 							do {
-								$ch = self::$pw_symbols[mt_rand(0, strlen(self::$pw_symbols)-1)];
-							} while (($this->pwgen_flags & self::PW_AMBIGUOUS) && strpos(self::$pw_ambiguous, $ch) !== false);
+								$ch = self::$pw_symbols[mt_rand(0,
+									strlen(self::$pw_symbols)-1)];
+							} while (($this->pwgen_flags & self::PW_AMBIGUOUS) &&
+								strpos(self::$pw_ambiguous, $ch) !== false);
 							$this->password[$c++] = $ch;
 							$feature_flags &= ~self::PW_SYMBOLS;
 						}
@@ -196,7 +199,8 @@
 					if ($should_be == self::CONSONANT) {
 						$should_be = self::VOWEL;
 					} else { // should_be == VOWEL
-						if (($prev & self::VOWEL) || ($flags & self::DIPHTHONG) || (mt_rand(0, 9) > 3))
+						if (($prev & self::VOWEL) || ($flags & self::DIPHTHONG) ||
+							(mt_rand(0, 9) > 3))
 							$should_be = self::CONSONANT;
 						else
 							$should_be = self::VOWEL;
@@ -209,12 +213,67 @@
 			$this->password = implode('', $this->password);
 		}
 
-		function pw_rand() {
-			echo 'pw_rand called ...';
+		private function pw_rand() {
+			$this->password = array();
+
+			$len = 0;
+			if ($this->pwgen_flags & self::PW_DIGITS) {
+				$len += strlen(self::$pw_digits);
+			}
+			if ($this->pwgen_flags & self::PW_UPPERS) {
+				$len += strlen(self::$pw_uppers);
+			}
+			$len += strlen(self::$pw_lowers);
+			if ($this->pwgen_flags & self::PW_SYMBOLS) {
+				$len += strlen(self::$pw_symbols);
+			}
+        		$chars = array();
+			if ($this->pwgen_flags & self::PW_DIGITS) {
+				$chars .= self::$pw_digits;
+			}
+			if ($this->pwgen_flags & self::PW_UPPERS) {
+				$chars .= self::$pw_uppers;
+			}
+			$chars .= self::$pw_lowers;
+			if ($this->pwgen_flags & self::PW_SYMBOLS) {
+				$chars .= self::$pw_symbols;
+			}
+
+			do {
+				$len = strlen($chars);
+				$feature_flags = $this->pwgen_flags;
+				$i = 0;
+
+				while ($i < $this->pw_length) {
+					$ch = $chars[mt_rand(0, $len-1)];
+					if (($this->pwgen_flags & self::PW_AMBIGUOUS) &&
+						strpos(self::$pw_ambiguous, $ch) !== false)
+						continue;
+					if (($this->pwgen_flags & self::NO_VOWELS) &&
+						strpos(self::$pw_vowels, $ch) !== false)
+						continue;
+					$this->password[$i++] = $ch;
+					if (strpos(self::$pw_digits, $ch) !== false)
+						$feature_flags &= ~self::PW_DIGITS;
+					if (strpos(self::$pw_uppers, $ch) !== false)
+						$feature_flags &= ~self::PW_UPPERS;
+					if (strchr(self::$pw_symbols, $ch) !== false)
+						$feature_flags &= ~self::PW_SYMBOLS;
+				}
+			} while ($feature_flags & (self::PW_UPPERS | self::PW_DIGITS | self::PW_SYMBOLS));
+
+			$this->password = implode('', $this->password);
 		}
 
-		static function fill_static() {
-			if(self::$filled === false) {
+		/**
+		 * This method initializes all static vars which contain complex datatypes.
+		 * It acts somewhat like a static block in Java. Since PHP does not support this principle, the method
+		 * is called from the constructor. Because of that you could not access them in a static way, even if
+		 * they were public, unless there exists at least one object of the class.
+		 */
+		private static function __static() {
+			if(!self::$initialized) {
+				self::$initialized = true;
 				self::$elements = array(
 					new PWElement('a', self::VOWEL),
 					new PWElement('ae', self::VOWEL | self::DIPHTHONG),
@@ -262,6 +321,7 @@
 				self::$pw_digits = '0123456789';
 				self::$pw_uppers = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 				self::$pw_lowers = 'abcdefghijklmnopqrstuvwxyz';
+				self::$pw_vowels = '01aeiouyAEIOUY';
 			}
 		}
 
