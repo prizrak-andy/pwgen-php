@@ -19,10 +19,10 @@
 		const NOT_FIRST = 0x0008;
 		const NO_VOWELS = 0x0010;
 
-		private $pw_length;
-		private $pwgen_flags;
 		private $pwgen;
+		private $pwgen_flags;
 		private $password;
+		private $pw_length;
 
 		private static $initialized = false; // static block alread called?
 		private static $elements;
@@ -57,49 +57,119 @@
 
 			$this->pwgen = 'pw_phonemes';
 
+			$this->setLength($length);
+			$this->setSecure($secure);
+			$this->setNumerals($numerals);
+			$this->setCapitalize($capitalize);
+			$this->setAmbiguous($ambiguous);
+			$this->setNoVovels($no_vovels);
+			$this->setSymbols($symbols);
+		}
+
+		/**
+		 * Length of the generated password. Default: 8
+		 */
+		public function setLength($length) {
 			if (is_numeric($length) && $length > 0) {
 				$this->pw_length = $length;
 				if ($this->pw_length < 5) {
 					$this->pwgen = 'pw_rand';
 				}
 				if ($this->pw_length <= 2) {
-					$this->pwgen_flags &= ~self::PW_UPPERS;
+					$this->setCapitalize(false);
 				}
 				if ($this->pw_length <= 1) {
-					$this->pwgen_flags &= ~self::PW_DIGITS;
+					$this->setNumerals(false);
 				}
 			} else {
 				$this->pw_length = 8;
 			}
+			return $this;
+		}
 
+		/**
+		 * Generate completely random, hard-to-memorize passwords. These should only used for machine passwords,
+		 * since otherwise it's almost guaranteed that users will simply write the password on a piece of paper
+		 * taped to the monitor...
+		 * Please note that this function implies that you want passwords which include symbols, numerals and
+		 * capital letters.
+		 */
+		public function setSecure($secure) {
 			if($secure) {
 				$this->pwgen = 'pw_rand';
-				$this->pwgen_flags |= self::PW_DIGITS | self::PW_UPPERS;
+				$this->setNumerals(true);
+				$this->setCapitalize(true);
+			} else {
+				$this->pwgen = 'pw_phonemes';
 			}
+			return $this;
+		}
 
+		/**
+		 * Include at least one number in the password. This is the default.
+		 */
+		public function setNumerals($numerals) {
 			if($numerals) {
 				$this->pwgen_flags |= self::PW_DIGITS;
+			} else {
+				$this->pwgen_flags &= ~self::PW_DIGITS;
 			}
+			return $this;
+		}
 
+		/**
+		 * Include at least one capital letter in the password. This is the default.
+		 */
+		public function setCapitalize($capitalize) {
 			if($capitalize) {
 				$this->pwgen_flags |= self::PW_UPPERS;
+			} else {
+				$this->pwgen_flags &= ~self::PW_UPPERS;
 			}
+			return $this;
+		}
 
+		/**
+		 * Don't use characters that could be confused by the user when printed, such as 'l' and '1', or '0' or
+		 * 'O'. This reduces the number of possible passwords significantly, and as such reduces the quality of
+		 * the passwords. It may be useful for users who have bad vision, but in general use of this option is
+		 * not recommended.
+		 */
+		public function setAmbiguous($ambiguous) {
 			if($ambiguous) {
 				$this->pwgen_flags |= self::PW_AMBIGUOUS;
+			} else {
+				$this->pwgen_flags &= ~self::PW_AMBIGUOUS;
 			}
+			return $this;
+		}
 
+		/**
+		 * Generate random passwords that do not contain vowels or numbers that might be mistaken for vowels. It
+		 * provides less secure passwords to allow system administrators to not have to worry with random
+		 * passwords accidentally contain offensive substrings.
+		 */
+		public function setNoVovels($no_vovels) {
 			if($no_vovels) {
 				$this->pwgen = 'pw_rand';
 				$this->pwgen_flags |= self::NO_VOWELS | self::PW_DIGITS | self::PW_UPPERS;
+			} else {
+				$this->pwgen = 'pw_phonemes';
+				$this->pwgen_flags &= ~self::NO_VOWELS;
 			}
-
-			if($symbols) {
-				$this->pwgen_flags |= self::PW_SYMBOLS;
-			}
+			return $this;
 		}
 
-		public function calculate() {
+		public function setSymbols($symbols) {
+			if($symbols) {
+				$this->pwgen_flags |= self::PW_SYMBOLS;
+			} else {
+				$this->pwgen_flags &= ~self::PW_SYMBOLS;
+			}
+			return $this;
+		}
+
+		public function generate() {
 			if($this->pwgen == 'pw_phonemes') {
 				$this->pw_phonemes();
 			} else { // $this->pwgen == 'pw_rand'
@@ -182,7 +252,7 @@
 						}
 					}
 					
-					/* Handle PW_SYMBOLS */
+					// Handle PW_SYMBOLS
 					if ($this->pwgen_flags & self::PW_SYMBOLS) {
 						if (!$first && (mt_rand(0, 9) < 2)) {
 							do {
@@ -216,17 +286,6 @@
 		private function pw_rand() {
 			$this->password = array();
 
-			$len = 0;
-			if ($this->pwgen_flags & self::PW_DIGITS) {
-				$len += strlen(self::$pw_digits);
-			}
-			if ($this->pwgen_flags & self::PW_UPPERS) {
-				$len += strlen(self::$pw_uppers);
-			}
-			$len += strlen(self::$pw_lowers);
-			if ($this->pwgen_flags & self::PW_SYMBOLS) {
-				$len += strlen(self::$pw_symbols);
-			}
         		$chars = array();
 			if ($this->pwgen_flags & self::PW_DIGITS) {
 				$chars .= self::$pw_digits;
@@ -268,8 +327,8 @@
 		/**
 		 * This method initializes all static vars which contain complex datatypes.
 		 * It acts somewhat like a static block in Java. Since PHP does not support this principle, the method
-		 * is called from the constructor. Because of that you could not access them in a static way, even if
-		 * they were public, unless there exists at least one object of the class.
+		 * is called from the constructor. Because of that you can not access the static vars unless there
+		 * exists at least one object of the class.
 		 */
 		private static function __static() {
 			if(!self::$initialized) {
@@ -323,6 +382,13 @@
 				self::$pw_lowers = 'abcdefghijklmnopqrstuvwxyz';
 				self::$pw_vowels = '01aeiouyAEIOUY';
 			}
+		}
+
+		/**
+		 * Returns the last generated password. If there is none, a new one will be generated.
+		 */
+		public function __toString() {
+			return (empty($this->password) ? $this->generate() : $this->password);
 		}
 
 	}
