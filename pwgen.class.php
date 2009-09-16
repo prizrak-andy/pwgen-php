@@ -185,11 +185,11 @@
 				$feature_flags = $this->pwgen_flags;
 				$c = 0;
 				$prev = 0;
-				$should_be = mt_rand(0, 1) ? self::VOWEL : self::CONSONANT;
+				$should_be = self::my_rand(0, 1) ? self::VOWEL : self::CONSONANT;
 				$first = 1;
 
 				while ($c < $this->pw_length) {
-					$i = mt_rand(0, count(self::$elements)-1);
+					$i = self::my_rand(0, count(self::$elements)-1);
 					$str = self::$elements[$i]->str;
 					$len = strlen($str);
 					$flags = self::$elements[$i]->flags;
@@ -223,7 +223,7 @@
 
 					// Handle PW_UPPERS
 					if ($this->pwgen_flags & self::PW_UPPERS) {
-						if (($first || $flags & self::CONSONANT) && (mt_rand(0, 9) < 2)) {
+						if (($first || $flags & self::CONSONANT) && (self::my_rand(0, 9) < 2)) {
 							$this->password[$c] = strtoupper($this->password[$c]);
 							$feature_flags &= ~self::PW_UPPERS;
 						}
@@ -237,9 +237,9 @@
 			
 					// Handle PW_DIGITS
 					if ($this->pwgen_flags & self::PW_DIGITS) {
-						if (!$first && (mt_rand(0, 9) < 3)) {
+						if (!$first && (self::my_rand(0, 9) < 3)) {
 							do {
-								$ch = strval(mt_rand(0, 9));
+								$ch = strval(self::my_rand(0, 9));
 							} while (($this->pwgen_flags & self::PW_AMBIGUOUS) &&
 								strpos(self::$pw_ambiguous, $ch) !== false);
 							$this->password[$c++] = $ch;
@@ -247,16 +247,16 @@
 					
 							$first = 1;
 							$prev = 0;
-							$should_be = mt_rand(0, 1) ? self::VOWEL : self::CONSONANT;
+							$should_be = self::my_rand(0, 1) ? self::VOWEL : self::CONSONANT;
 							continue;
 						}
 					}
 					
 					// Handle PW_SYMBOLS
 					if ($this->pwgen_flags & self::PW_SYMBOLS) {
-						if (!$first && (mt_rand(0, 9) < 2)) {
+						if (!$first && (self::my_rand(0, 9) < 2)) {
 							do {
-								$ch = self::$pw_symbols[mt_rand(0,
+								$ch = self::$pw_symbols[self::my_rand(0,
 									strlen(self::$pw_symbols)-1)];
 							} while (($this->pwgen_flags & self::PW_AMBIGUOUS) &&
 								strpos(self::$pw_ambiguous, $ch) !== false);
@@ -270,7 +270,7 @@
 						$should_be = self::VOWEL;
 					} else { // should_be == VOWEL
 						if (($prev & self::VOWEL) || ($flags & self::DIPHTHONG) ||
-							(mt_rand(0, 9) > 3))
+							(self::my_rand(0, 9) > 3))
 							$should_be = self::CONSONANT;
 						else
 							$should_be = self::VOWEL;
@@ -304,7 +304,7 @@
 				$i = 0;
 
 				while ($i < $this->pw_length) {
-					$ch = $chars[mt_rand(0, $len-1)];
+					$ch = $chars[self::my_rand(0, $len-1)];
 					if (($this->pwgen_flags & self::PW_AMBIGUOUS) &&
 						strpos(self::$pw_ambiguous, $ch) !== false)
 						continue;
@@ -322,6 +322,17 @@
 			} while ($feature_flags & (self::PW_UPPERS | self::PW_DIGITS | self::PW_SYMBOLS));
 
 			$this->password = implode('', $this->password);
+		}
+
+		/**
+		 * Generate a random number n, where $min <= n < $max, using OpenSSL's pseudo random number generator
+		 * Mersenne Twister is used as a fallback algorithm, if PHP < 5.3.0 is used.
+		 */
+		public static function my_rand($min=0, $max=0) {
+			if(!function_exists('openssl_random_pseudo_bytes')) {
+				return mt_rand($min, $max);
+			}
+			return (intval(openssl_random_pseudo_bytes(4, true)) + $min) % ($max != 0 ? $max : 1);
 		}
 
 		/**
