@@ -286,7 +286,7 @@
 		private function pw_rand() {
 			$this->password = array();
 
-        		$chars = array();
+        		$chars = '';
 			if ($this->pwgen_flags & self::PW_DIGITS) {
 				$chars .= self::$pw_digits;
 			}
