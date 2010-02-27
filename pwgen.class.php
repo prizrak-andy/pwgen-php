@@ -325,14 +325,11 @@
 		}
 
 		/**
-		 * Generate a random number n, where $min <= n < $max, using OpenSSL's pseudo random number generator
-		 * Mersenne Twister is used as a fallback algorithm, if PHP < 5.3.0 is used.
+		 * Generate a random number n, where $min <= n < $max
+		 * Mersenne Twister is used as an algorithm
 		 */
 		public static function my_rand($min=0, $max=0) {
-			if(!function_exists('openssl_random_pseudo_bytes')) {
-				return mt_rand($min, $max);
-			}
-			return (intval(openssl_random_pseudo_bytes(4, true)) + $min) % ($max != 0 ? $max : 1);
+			return mt_rand($min, $max);
 		}
 
 		/**
